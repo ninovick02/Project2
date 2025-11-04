@@ -1,0 +1,50 @@
+---
+title: "static"
+format: html
+editor: visual
+---
+
+```{r}
+library(tidyverse)
+```
+
+```{r}
+df <- read_csv("user_behavior_dataset.csv")
+```
+
+```{r}
+num <- df |> select(where(is.numeric)) |> select(-`User ID`)
+cat <- df |> select(where(is.character)) |>
+  mutate(across(where(is.character), as.factor))
+user_id <- df |> select(`User ID`)
+```
+
+
+
+```{r}
+lapply(cat, table)
+```
+
+```{r}
+lapply(names(cat), function(col_name) {
+  ggplot(data = cat, aes(x = .data[[col_name]], fill = .data[[col_name]])) +
+    labs(title = paste("Count of", col_name),
+         x = col_name,
+         y = "Count") +
+    geom_bar()
+  })
+```
+
+```{r}
+for (i in names(cat)){
+  for (j in names(cat)){
+    if(i != j){
+      result <- table(cat[[i]], cat[[j]])
+      print(paste(i, "vs", j))
+      print(result)
+    }
+  }
+}
+```
+
+
