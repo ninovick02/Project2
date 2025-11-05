@@ -9,6 +9,7 @@ Loading needed libraries
 ```{r}
 library(tidyverse)
 library(janitor)
+library(knitr)
 ```
 
 Source Pages
@@ -45,21 +46,36 @@ Calling A 2 way table
 make_way_tables(cat, c("device_model", "gender"))
 ```
 
-Making filtered tables
+Making filtered table
 ```{r}
+make_filtered_tables(df, c("age", "number_of_apps_installed"), conds = (as.numeric(df$user_behavior_class) < 3 & df$age > 50), groups =c( "device_model", "gender"))
 
 ```
 
+Make numeric summaries
 ```{r}
-for (i in names(cat)){
-  for (j in names(cat)){
-    if(i != j){
-      result <- table(cat[[i]], cat[[j]])
-      print(paste(i, "vs", j))
-      print(result)
-    }
-  }
-}
+make_summaries(df, c("age", "number_of_apps_installed"), groups =c("device_model", "gender"))
 ```
 
+
+Make graphs one of each
+types = bar, density, box, jitter, scatter, correlation 
+```{r}
+make_visuals(df, "gender", type = bar)
+make_visuals(df, "gender", group = "device_model", type = bar)
+
+make_visuals(df, "age", type = "density")
+make_visuals(df, "age", group = "gender", type = "density")
+
+make_visuals(df, "age", type = "box")
+make_visuals(df, "age", group = "device_model", type = "box")
+
+make_visuals(df, "age", group = "device_model", type = "jitter")
+
+make_visuals(df, vars = c("age", "number_of_apps_installed"), type = "scatter")
+make_visuals(df, vars = c("age", "number_of_apps_installed"), group = "device_model", type = "scatter")
+
+make_visuals(df, names(df), type = "correlation")
+
+```
 

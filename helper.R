@@ -76,30 +76,32 @@ make_filtered_tables <- function(df, col_names, groups = NULL, conds = NULL){
       filter(conds)
   }
   
+  columns_to_select <- c(groups, setdiff(col_names, groups))
+
+  result <- df |> 
+    select(all_of(columns_to_select))
+  
   if (!is.null(groups)){
-    df <- df |> group_by(across(all_of(groups)))
+    result <- result |> group_by(across(all_of(groups))) |> arrange(across(all_of(groups)))
   }
   
-  result <- df |> select(col_names)
-  for(i in 1:length(col_names)){
-    names(result)[i] <- clean_label(col_names[i])
-  }
+  result <- result |> rename_with(~ sapply(.x, clean_label), everything())
   
   return(result)
 }
 
 make_summaries <- function(df, vars, groups = NULL, stats = c("Minimum", "Q1", "Median", "Q3", "Maximum"), quantiles = NULL){
   
-  funct_choice <-  list( "Minimum" = ~ min(.x),
-                         "Q1" = ~ quantile(.x, .25),
-                         "Median" = ~ median(.x),
-                         "Mean" = ~ mean(.x),
-                         "Q3" = ~ quantile(.x, .75),
-                         "Maximum" = ~ max(.x),
-                         "Standard Deviation" = ~ sd(.x),
-                         "Variance" = ~ var(.x),
-                         "Range" = ~ range(.x),
-                         "Count" = ~ n()
+  funct_choice <-  list( "Minimum" = function(x) min(x),
+                         "Q1" = function(x) unname(quantile(x, .25)),
+                         "Median" = function(x) median(x),
+                         "Mean" = function(x) mean(x),
+                         "Q3" = function(x) unname(quantile(x, .75)),
+                         "Maximum" = function(x) max(x),
+                         "Range" = function(x) max(x) - min(x),
+                         "Standard Deviation" = function(x) sd(x),
+                         "Variance" = function(x) var(x),
+                         "Count" = function(x) length(x)
                          )
   functs <- funct_choice[stats]
   
@@ -111,25 +113,25 @@ make_summaries <- function(df, vars, groups = NULL, stats = c("Minimum", "Q1", "
       j = i
       if(quantiles[i] <= .25){
         if(!("Minimum" %in% names(functs))){j<- j - 1}
-        functs <- append(functs, ~ quantile(.x, quantiles[i]), after = j)
+        functs <- append(functs, function(x) unname(quantile(x, quantiles[i]), after = j))
         names(functs)[[j + 1]] <- names(quantiles)[i]
       }
       if(quantiles[i] > .25 & quantiles[i] <= .5){
         if("Q1" %in% names(functs)){j = j + 1}
         if(!("Minimum" %in% names(functs))){j<- j - 1}
-        functs <- append(functs, ~ quantile(.x, quantiles[i]), after = j)
+        functs <- append(functs, function(x) unname(quantile(x, quantiles[i]), after = j))
         names(functs)[[j + 1]] <- names(quantiles)[i]
       }
       if(quantiles[i] > .5 & quantiles[i] <= .75){
         if(!is.null(intersect(c("Q1", "Median", "Mean"), names(functs)))){j = j + length(intersect(c("Q1, Median, Mean"), names(functs)))}
         if(!("Minimum" %in% names(functs))){j <- j - 1}
-        functs <- append(functs, ~ quantile(.x, quantiles[i]), after = j)
+        functs <- append(functs, function(x) unname(quantile(x, quantiles[i]), after = j))
         names(functs)[[j + 1]] <- names(quantiles)[i]
       }
       if(quantiles[i] >= 1){
         if(!is.null(intersect(c("Q1", "Median", "Mean", "Q3"), names(functs)))){j = j + length(intersect(c("Q1, Median, Mean", "Q3"), names(functs)))}
         if(!("Minimum" %in% names(functs))){j <- j - 1}
-        functs <- append(functs, ~ quantile(.x, quantiles[i]), after = j)
+        functs <- append(functs, function(x) unname(quantile(x, quantiles[i]), after = j))
         names(functs)[[j + 1]] <- names(quantiles)[i]
       }
     }
@@ -152,7 +154,7 @@ make_summaries <- function(df, vars, groups = NULL, stats = c("Minimum", "Q1", "
       pivot_longer(
           cols = !all_of(groups), 
           names_to = c("Variable", "Statistic"), 
-          names_sep = "_",
+          names_pattern = "(.*)_(.*)",
           values_to = "Value"
         )
     
@@ -164,11 +166,11 @@ make_summaries <- function(df, vars, groups = NULL, stats = c("Minimum", "Q1", "
       )
     
     return(summary_table)
-  
 }
 
-make_visuals <- function(df, vars, group = NULL, facet = NULL, type, conds) {
-  df <- df |> filter(conds)
+make_visuals <- function(df, vars, group = NULL, facet = NULL, type, conds = NULL) {
+  
+  if(!is.null(conds)){df <- df |> filter(conds)}
   # --- Start Plot Construction ---
   p <- ggplot(df)
   
@@ -178,44 +180,42 @@ make_visuals <- function(df, vars, group = NULL, facet = NULL, type, conds) {
     is_cat <- is.factor(df[[vars]])
     
     # --- Aesthetics Setup ---
-    base_aes <- "x = var1"
+    base_aes <- var1
     
     # --- Categorical Plots (Bar / Pie) ---
     if (is_cat) {
       
       # If grouping is applied, set the fill aesthetic
       if (!is.null(group)) {
-        fill_aes <- "fill = group"
-      }else{fill_aes <- "fill = var1"}
+        fill_aes <- group
+      }else{fill_aes <- var1}
       
-        p <- p + 
-          geom_bar(aes_string(base_aes, fill_aes), position = if(!is.null(group)){"dodge"}else{"stack"})
-          if(!is.null(group)){
-            p <- p + labs(title = paste("Clustered Bar Chart of", clean_label(var1), "by", clean_label(group)),
-                 fill = clean_label(group)) 
-          }else{
-            p <- p + labs(title = paste("Bar Chart of", clean_label(var1), sep = " "))
-          }
-        p <- p + labs(xlab = clean_label(var1), ylab = "Count")
+      p <- p +
+        geom_bar(aes_string(x = base_aes, fill = fill_aes), position = if(!is.null(group)){"dodge"}else{"stack"})
+        if(!is.null(group)){
+          p <- p + labs(title = paste("Clustered Bar Chart of", clean_label(var1), "by", clean_label(group)),
+               fill = clean_label(group), 
+               x = clean_label(var1), y = "Count") 
+        }else{
+          p <- p + labs(title = paste("Bar Chart of", clean_label(var1), sep = " "), 
+                        x = clean_label(var1), y = "Count", fill = clean_label(fill_aes))
+        }
       # --- Numeric Plots (Hist, Density, Box, Jitter) ---
     } else {
       
-      if (!is.null(group)) {
-        fill_aes <- "alpha = .5, fill = group"
-      }else{fill_aes <- "fill = 'skyblue'"}
       # Prepare position argument for grouped numeric plots
       pos <- if(!is.null(group)){ "identity"} else{ "stack"}
     
       if (type == "density"){
-          p <- p + 
-            geom_histogram(aes_string(base_aes, fill_aes))
             if(!is.null(group)){
-              p <- p + labs(title = paste("Smoothed Histogram of", clean_label(var1), "by", clean_label(group)),
+              p <- p + geom_density(aes_string(var1, alpha = .5, fill = group))+ 
+                labs(title = paste("Smoothed Histogram of", clean_label(var1), "by", clean_label(group)),
                    fill = clean_label(group)) 
             }else{
-              p <- p + labs(title = paste("Smoothed Histogram of", clean_label(var1), sep = " "))
+              p <- p + geom_density(aes_string(var1), fill = "skyblue") +
+                labs(title = paste("Smoothed Histogram of", clean_label(var1), sep = " "))
             }
-          p <- p + labs(xlab = clean_label(var1), ylab = "Density")
+          p <- p + labs(x = clean_label(var1), y = "Density")
         
       }  else if (type == "box") {
         # Box plots: If grouped, the group variable moves to the X-axis for side-by-side comparison
@@ -225,7 +225,7 @@ make_visuals <- function(df, vars, group = NULL, facet = NULL, type, conds) {
                  title = paste("Box Plot of", clean_label(var1), "by", clean_label(group)))
           } else {
             p <- p + geom_boxplot(aes_string(x = factor(1), y = var1)) + 
-              labs(x = " ", y = clean_label(var1), 
+              labs(x = " ", y = clean_label(var1), fill = clean_label(group),
                    title = paste("Box Plot of", clean_label(var1)))
         } 
         
@@ -240,37 +240,51 @@ make_visuals <- function(df, vars, group = NULL, facet = NULL, type, conds) {
     } 
   
   # CASE 2: BIVARIATE (LENGTH 2) - SCATTERPLOT
-  } else if (length(vars) == 2) {
+  } else if (length(vars) >= 2) {
     var_x <- vars[1]
     var_y <- vars[2]
     
-    if(type == "correlation"){df$user_behavior_class <- as.numeric(df$user_behavior_class)}
+    if(type == "correlation"){
+      df$user_behavior_class <- as.numeric(df$user_behavior_class)
+      }
     
-    # Validate that both are numeric for a scatterplot
-    if (!is.numeric(df[[var_x]]) || !is.numeric(df[[var_y]])) {
-      stop("Both variables for a bivariate plot must be numeric.")
-    }
+  
     if(type == "scatter"){  
       if(!is.null(group)){
         p <- p +
-          geom_point(aes_string(x = var_x, y = var_y, color = group),  alpha = 0.7) 
+          geom_point(aes_string(x = var_x, y = var_y, color = group),  alpha = 0.7) +
+          geom_smooth(aes_string(x = var_x, y = var_y, color = group),  alpha = 0.4, method = lm)
       }else{
         p <- p +
-          geom_point(aes_string(x = var_x, y = var_y), alpha = 0.7)
+          geom_point(aes_string(x = var_x, y = var_y), alpha = 0.7) +
+          geom_smooth(aes_string(x = var_x, y = var_y), alpha = 0.4, method = lm)
       }
       p <- p +
-        geom_smooth(method = lm) + # Add a simple trend line
-        labs(title = paste("Scatter Plot:", var_y, "vs", var_x, if(!is.null(group)){paste("(Colored by", group, ")")}))
+        labs(x = clean_label(var_x),
+             y = clean_label(var_y),
+             color = clean_label(group),
+             title = paste("Scatter Plot:", clean_label(var_y), "vs", clean_label(var_x), if(!is.null(group)){paste("(By", clean_label(group), ")")}))
+      
     }else if(type == "correlation"){
-      corr_mat <- df |> select(where(is.numeric)) |> cor()
-      corr_long <- corr_mat |>
-        as_tibble() |>
-        mutate(var1 = rownames(.)) |>
-        pivot_longer(-var1, names_to = "var2", values_to = "correlation")
-      p <- ggplot(corr_long, aes(x = var1, y = var2, fill = correlation)) +
+      num_df <- df |> select(all_of(vars)) |> select(where(is.numeric))
+      corr_mat <- num_df |> cor(use = "pairwise.complete.obs")
+      
+      for(j in 1:2){
+          dimnames(corr_mat)[[j]] <- sapply(names(num_df), clean_label)
+       }
+      
+      corr_long <- as.data.frame(corr_mat) |>
+        tibble::rownames_to_column("var1") |>   # preserves row names as a column
+        pivot_longer(
+          cols = -var1,
+          names_to = "var2",
+          values_to = "correlation"
+        )
+      
+      q <- ggplot(corr_long, aes(x = var1, y = var2, fill = correlation)) +
         geom_tile(color = "white") +  # white grid lines between tiles
         scale_fill_gradient2(
-          low = "blue", mid = "white", high = "red",
+          low = "blue", mid = "purple", high = "red",
           midpoint = 0, limits = c(-1, 1)
         ) +
         labs(
@@ -280,7 +294,11 @@ make_visuals <- function(df, vars, group = NULL, facet = NULL, type, conds) {
         theme_minimal() +
         theme(
           axis.title = element_blank(),
-          panel.grid = element_blank())
+          panel.grid = element_blank(),
+          axis.text.x = element_text(angle = 45, hjust = 1), 
+          plot.title = element_text(hjust = .5))
+      
+      return(q)
     }
   }
   
