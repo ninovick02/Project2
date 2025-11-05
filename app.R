@@ -5,6 +5,8 @@ library(sortable)
 library(tidyverse)
 library(janitor)
 library(knitr)
+library(DT)
+# library(litedown)
 
 source("helper.R")
 
@@ -19,11 +21,12 @@ ui <- sidebarLayout(
       
       navset_card_underline(
         
-        nav_panel("About", includeMarkdown("about.md"), card(
+        nav_panel("About", #includeHTML("README.md"), 
+                  card(
           card_image("www/Mobile Phone.png", height = "300px")
         )),
         
-        nav_panel("Data Download", DT::datatableOutput("filter_table")),
+        nav_panel("Data Download", DT::dataTableOutput("filter_table")),
         
         nav_panel("Data Exploration", 
                   card(radioButtons(
@@ -40,7 +43,7 @@ ui <- sidebarLayout(
                   
                   
                   
-                  ),
+                  )
         
         # nav_panel(
         #   "Reference",
@@ -72,10 +75,14 @@ server <- function(input, output, session){
              fluidRow(
                h3("Categorical Data Summary"),
                p("Provides One-Way and Two-Way Tables for categorical data"),
-               selectInput("cat_var1" ,"Select Variable", choices = sapply(names(cat_vars), clean_label), selected = names(cat_vars[1]), ),
-               actionButton("make_2_way", "Click to Add a Variable", ),
+               selectInput("cat_var1" ,"Select Variable", 
+                           choiceNames = sapply(names(cat_vars), clean_label), 
+                           choiceValues = names(cat_vars)),
+               actionButton("make_2_way", "Click to Add a Variable"),
                conditionalPanel("input.make_2_way",
-                 selectInput("cat_var2", "Select Second Variable", choices = sapply(names(cat_vars), clean_label), selected = cat_vars[2]),
+                 selectInput("cat_var2", "Select Second Variable", 
+                             choiceNames = sapply(names(cat_vars), clean_label), 
+                             choiceValues = names(cat_vars))
                ),
                actionButton("make_table", "Create Contingency Table"),
                tableOutput("way_table")
@@ -86,18 +93,27 @@ server <- function(input, output, session){
              # If input is "B", render Card B (e.g., a specialized input block)
              card(
                card_header("Numeric Value Summary"),
-               checkboxGroupInput("num_vars", "Select Numeric Variables to Summarize", choices = clean_label(num_vars)),
+               
+               checkboxGroupInput("num_vars", "Select Numeric Variables to Summarize", 
+                                  choiceNames = sapply(names(num_vars), clean_label),
+                                  choiceValues = names(num_vars)),
+               
                checkboxGroupInput("stats", "Select Summary Statistics to add",
                                   choice = c("Minimum", "Q1", "Median", "Q3", "Maximum", 
                                              "Range", "Standard Deviation", "Variance", "Count")),
+               
                actionButton("other_quant", "Click to add other percentile options"),
+               
                conditionalPanel("input.other_quant",
                                 h3("Enter Numbers for additional percentile statistics"),
                                 textInput("num_input", 'Enter numbers (0–1, separated by commas):", "'),
                                 actionButton("submit_nums", "Submit"),
                                 textOutput("num_feedback")),
+               
                actionButton("grouped_num", "Click here to Group by Categorical Variables"),
+               
                conditionalPanel("input.group_num",
+                                
                                 fluidRow(
                                   h3("Choose and order your variables"),
                                   orderInput(
@@ -105,16 +121,19 @@ server <- function(input, output, session){
                                     items = sapply(names(cat_vars), clean_label), connect = "selected_vars",
                                     as_source = TRUE, as_target = FALSE
                                   ),
+                                  
                                   orderInput(
                                     "selected_vars", "Selected variables (drag here):",
                                     items = NULL, connect = "available_vars",
                                     as_source = TRUE, as_target = TRUE
                                   ),
+                                  
                                   actionButton("submit_order", "Submit"),
                                   textOutput("order_feedback")
                                 )
                               ),
                actionButton("make_num_sum", "Create Table"),
+               
                renderTable("num_sum_tab")
              )
            },
@@ -123,15 +142,25 @@ server <- function(input, output, session){
              # If input is "C", render Card C (e.g., a DT table output)
              div(
                h3("Plot Data"),
-               radioButtons("graph_type", "Select Type of Graph",
-                            choiceNames = c("Bar chart", "Density Plot", "Box Plot", "Jitter Plot", "Scatter Plot", "Numeric Correlation Heat Map"), 
-                            choiceValues = c("bar", "density", "box", "jitter", "scatter", "correlation")),
+               selectInput("x_var", "Select X variable", choiceNames = names(df_raw), choiceValues = names(df)),
+               selectInput("y_var", "Select Y variable", choiceNames = names(df_raw), choiceValues = names(df)),
+               selectInput("fill", "Group By: ", choiceNames = sapply(names(cat_vars), clean_label), choiceValues = names(cat_vars)),
+               actionButton("add_facet", "Click Here to add faceting"),
+               conditionalPanel("input.add_facet", 
+                                selectInput("facet1", "Select Variable to Facet by",
+                                            choiceNames = sapply(names(cat_vars), clean_label), choiceValues = names(cat_vars)),
+                                selectInput("facet2", "Select Second Faceting Variable if Desired",
+                                            choiceNames = sapply(names(cat_vars), clean_label), choiceValues = names(cat_vars))
+               )
                
              )
            },
+           "heatmap" = {
+             renderPlot("corr")
+           }
            
            # Optional: Default message if no choice is made or recognized
-           div("Please select an option to view the corresponding card.")
+           #div("Please select an option to view the corresponding card.")
       )
     
     })
