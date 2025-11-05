@@ -47,15 +47,11 @@ make_way_tables <- function(col_names = ...){
   tabyl(df, temp)
 }
 
-make_filtered_tables <- function(df, col_names, groups = NULL, conds = c(NULL, NULL)){
+make_filtered_tables <- function(df, col_names, groups = NULL, conds){
   
   if(!is.null(conds)){
     df <- df |> 
-      filter(
-        if_all(
-          .cols = where(is.numeric),
-          .fns = ~ .x >= conds[1]  & .x <= conds[2])
-      )
+      filter(conds)
   }
   
   if (!is.null(groups)){
@@ -146,62 +142,18 @@ make_summaries <- function(df, vars, groups = NULL, stats = c("Minimum", "Q1", "
   
 }
 
-#' Helper to determine if a variable in a data frame is effectively discrete (categorical).
-#' @param df The data frame.
-#' @param var The unquoted column name (as a string).
-#' @return Logical (TRUE if categorical).
-is_discrete <- function(df, var) {
-  # Check if the column is a factor, character, or logical type
-  is.factor(df[[var]]) || is.character(df[[var]]) || is.logical(df[[var]])
-}
-
-#' Helper to apply facetting based on the 'facet' argument length.
-#' @param p The ggplot object.
-#' @param facet A character vector of length 1 or 2.
-#' @return The ggplot object with faceting applied, or the original plot.
-apply_facets <- function(p, facet) {
-  if (is.null(facet)) {
-    return(p)
-  }
-  
-  if (length(facet) == 1) {
-    p <- p + facet_wrap(sym(facet[1]))
-  } else if (length(facet) == 2) {
-    # Facet grid requires the format rows ~ columns
-    p <- p + facet_grid(sym(facet[1]) ~ sym(facet[2]))
-  } else {
-    warning("Facet argument should be of length 1 (wrap) or 2 (grid). Facetting skipped.")
-  }
-  return(p)
-}
-
-# =================================================================
-# MAIN PLOTTING FUNCTION
-# =================================================================
-
-#' Generates various ggplot2 visualizations based on input variables and type.
-#'
-#' @param df The data frame.
-#' @param vars A character vector of length 1 (univariate) or 2 (bivariate).
-#' @param group An optional character string for the grouping variable (must be categorical).
-#' @param facet An optional character vector of length 1 or 2 for faceting.
-#' @param type A character string specifying the plot type (e.g., "bar", "hist", "scatter").
-#' @return A ggplot object.
-make_visuals <- function(df, vars, group = NULL, facet = NULL, type) {
-
+make_visuals <- function(df, vars, group = NULL, facet = NULL, type, conds) {
+  df <- df |> filter(conds)
   # --- Start Plot Construction ---
   p <- ggplot(df)
   
-  # =================================================================
   # CASE 1: UNIVARIATE (LENGTH 1)
-  # =================================================================
   if (length(vars) == 1) {
     var1 <- vars
-    is_cat <- is.factor(vars)
+    is_cat <- is.factor(df[[vars]])
     
     # --- Aesthetics Setup ---
     base_aes <- "x = var1"
-
     
     # --- Categorical Plots (Bar / Pie) ---
     if (is_cat) {
@@ -212,14 +164,14 @@ make_visuals <- function(df, vars, group = NULL, facet = NULL, type) {
       }else{fill_aes <- "fill = var1"}
       
         p <- p + 
-          geom_bar(aes(sym(base_aes), sym(fill_aes)), position = if(!null(group)){"dodge"}else{"stack"}) +
+          geom_bar(aes_string(base_aes, fill_aes), position = if(!is.null(group)){"dodge"}else{"stack"})
           if(!is.null(group)){
-            labs(title = paste("Clustered Bar Chart of", clean_label(var1), "by", clean_label(group)),
+            p <- p + labs(title = paste("Clustered Bar Chart of", clean_label(var1), "by", clean_label(group)),
                  fill = clean_label(group)) 
           }else{
-            labs(title = paste("Bar Chart of", clean_label(var1), sep = " "))
+            p <- p + labs(title = paste("Bar Chart of", clean_label(var1), sep = " "))
           }
-          + labs(xlab = clean_label(var1), ylab = "Count")
+        p <- p + labs(xlab = clean_label(var1), ylab = "Count")
       # --- Numeric Plots (Hist, Density, Box, Jitter) ---
     } else {
       
@@ -230,39 +182,98 @@ make_visuals <- function(df, vars, group = NULL, facet = NULL, type) {
       pos <- if(!is.null(group)){ "identity"} else{ "stack"}
     
       if (type == "density"){
-        p <- p + 
           p <- p + 
-            geom_histogram(aes(sym(base_aes), sym(fill_aes))) +
+            geom_histogram(aes_string(base_aes, fill_aes))
             if(!is.null(group)){
-              labs(title = paste("Smoothed Histogram of", clean_label(var1), "by", clean_label(group)),
+              p <- p + labs(title = paste("Smoothed Histogram of", clean_label(var1), "by", clean_label(group)),
                    fill = clean_label(group)) 
             }else{
-              labs(title = paste("Smoothed Histogram of", clean_label(var1), sep = " "))
+              p <- p + labs(title = paste("Smoothed Histogram of", clean_label(var1), sep = " "))
             }
-          + labs(xlab = clean_label(var1), ylab = "Density")
+          p <- p + labs(xlab = clean_label(var1), ylab = "Density")
         
       }  else if (type == "box") {
         # Box plots: If grouped, the group variable moves to the X-axis for side-by-side comparison
-        p <- p + if(!is.null(group)){
-          geom_boxplot(aes(x = group, y = var1, fill = group)) + 
+        if(!is.null(group)){
+          p <- p + geom_boxplot(aes_string(x = group, y = var1, fill = group)) + 
             labs(x = clean_label(group), y = clean_label(var1), 
                  title = paste("Box Plot of", clean_label(var1), "by", clean_label(group)))
           } else {
-            geom_boxplot(aes(x = factor(1), y = var1)) + 
+            p <- p + geom_boxplot(aes_string(x = factor(1), y = var1)) + 
               labs(x = " ", y = clean_label(var1), 
                    title = paste("Box Plot of", clean_label(var1)))
         } 
         
       } else if (type == "jitter" && !is.null(group)) {
         # Jitter plots: Require a categorical X-axis (the group)
-        p <- p + geom_jitter(aes(x = group, y = var1, color = group), width = .25) + 
+        p <- p + geom_jitter(aes_string(x = group, y = var1, color = group), width = .25) + 
           labs(title = paste("Jitter Plot of", clean_label(var1), "by", clean_label(group)))
         
       } else {
         stop(paste("Invalid or unsupported 'type' for the selected variables and groups:", type))
       }
     } 
+  
+  # CASE 2: BIVARIATE (LENGTH 2) - SCATTERPLOT
+  } else if (length(vars) == 2) {
+    var_x <- vars[1]
+    var_y <- vars[2]
+    
+    if(type == "correlation"){df$user_behavior_class <- as.numeric(df$user_behavior_class)}
+    
+    # Validate that both are numeric for a scatterplot
+    if (!is.numeric(df[[var_x]]) || !is.numeric(df[[var_y]])) {
+      stop("Both variables for a bivariate plot must be numeric.")
+    }
+    if(type == "scatter"){  
+      if(!is.null(group)){
+        p <- p +
+          geom_point(aes_string(x = var_x, y = var_y, color = group),  alpha = 0.7) 
+      }else{
+        p <- p +
+          geom_point(aes_string(x = var_x, y = var_y), alpha = 0.7)
+      }
+      p <- p +
+        geom_smooth(method = lm) + # Add a simple trend line
+        labs(title = paste("Scatter Plot:", var_y, "vs", var_x, if(!is.null(group)){paste("(Colored by", group, ")")}))
+    }else if(type == "correlation"){
+      corr_mat <- df |> select(where(is.numeric)) |> cor()
+      corr_long <- corr_mat |>
+        as_tibble |>
+        mutate(var1 = rownames(.)) |>
+        pivot_longer(-var1, names_to = "var2", values_to = "correlation")
+      p <- ggplot(corr_long, aes(x = var1, y = var2, fill = correlation)) +
+        geom_tile(color = "white") +  # white grid lines between tiles
+        scale_fill_gradient2(
+          low = "blue", mid = "white", high = "red",
+          midpoint = 0, limits = c(-1, 1)
+        ) +
+        labs(
+          title = "Correlation Matrix",
+          fill = "Correlation"
+        ) +
+        theme_minimal() +
+        theme(
+          axis.title = element_blank(),
+          panel.grid = element_blank())
+    }
   }
+  
+  
+  # --- Apply Facets (Final Step) ---
+  if(!is.null(facet)){
+    if(length(facet) == 1){
+      p <- p + facet_wrap(~ facet)
+    }else if(length(facet) == 2){
+      p <- p + facet_grid(facet[1] ~ facet[2])
+    }
+  }
+  
+  final_plot <- p +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1), 
+          plot.title = element_text(hjust = .5))
+  
+  return(final_plot)
 }
 
 
