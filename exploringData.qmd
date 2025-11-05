@@ -4,35 +4,50 @@ format: html
 editor: visual
 ---
 
+
+Loading needed libraries
 ```{r}
 library(tidyverse)
+library(janitor)
 ```
 
+Source Pages
 ```{r}
-df <- read_csv("user_behavior_dataset.csv")
-```
-
-```{r}
-num <- df |> select(where(is.numeric)) |> select(-`User ID`)
-cat <- df |> select(where(is.character)) |>
-  mutate(across(where(is.character), as.factor))
-user_id <- df |> select(`User ID`)
+source("helper.R")
 ```
 
 
-
+Loading data
 ```{r}
-lapply(cat, table)
+df_raw <- read_csv("user_behavior_dataset.csv")
+```
+Making df nice (also on helper page)
+```{r}
+df <- df_raw|>
+  mutate(across(where(is.character), as.factor)) |> 
+  mutate(`User Behavior Class` = 
+           factor(x = `User Behavior Class`, 
+                  labels = c("Light Usage", "Mild Usage", "Moderate Usage", "Heavy Usage", "Extreme Usage"))) |>
+  clean_names()
 ```
 
+
+Calling 1-way tables
 ```{r}
-lapply(names(cat), function(col_name) {
-  ggplot(data = cat, aes(x = .data[[col_name]], fill = .data[[col_name]])) +
-    labs(title = paste("Count of", col_name),
-         x = col_name,
-         y = "Count") +
-    geom_bar()
-  })
+cat <- df |> select(where(is.factor))
+for(i in 1:length(cat)){
+  print(make_way_tables(cat, names(cat)[i]))
+  }
+```
+
+Calling A 2 way table
+```{r}
+make_way_tables(cat, c("device_model", "gender"))
+```
+
+Making filtered tables
+```{r}
+
 ```
 
 ```{r}

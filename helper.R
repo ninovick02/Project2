@@ -15,37 +15,53 @@ clean_label <- function(name) {
   return(paste(s, collapse = " "))
 }
 
-single_var_chart <- function(df, col_name){
-  p <- ggplot(data = df, aes(x = .data[[col_name]])) +
-    theme(axis.text.x = element_text(angle = 45, hjust = 1), 
-          plot.title = element_text(hjust = .5))
+# single_var_chart <- function(df, col_name){
+#   p <- ggplot(data = df, aes(x = .data[[col_name]])) +
+#     theme(axis.text.x = element_text(angle = 45, hjust = 1), 
+#           plot.title = element_text(hjust = .5))
+#   
+#   if(is.numeric(df[[col_name]])){
+#     result <- p +
+#       geom_histogram(aes(y = after_stat(density)), fill = "skyblue", 
+#                      color = "white", bins = 30) +
+#       
+#       geom_density(linewidth = 1.2, color = "red") + 
+#       
+#       labs(title = paste("Distribution of", col_name), # Updated title
+#            x = col_name,
+#            y = "Density")  # Updated y-axis label
+#   }
+#    else{
+#     result <- p +
+#        labs(title = paste("Count of", col_name),
+#          x = col_name,
+#          y = "Count") +
+#     geom_bar(aes(fill = .data[[col_name]]))
+#    }
+#   return(result)
+# }
+
+make_way_tables <- function(df, col_names){
+  #Only allow options to be categorical data
   
-  if(is.numeric(df[[col_name]])){
-    result <- p +
-      geom_histogram(aes(y = after_stat(density)), fill = "skyblue", 
-                     color = "white", bins = 30) +
-      
-      geom_density(linewidth = 1.2, color = "red") + 
-      
-      labs(title = paste("Distribution of", col_name), # Updated title
-           x = col_name,
-           y = "Density")  # Updated y-axis label
+  f = paste("~", paste(col_names, collapse="+"))
+  result <- xtabs(f, data=df)
+  
+  for(i in 1:length(col_names)){
+    names(dimnames(result))[i] <- clean_label(col_names[i])
   }
-   else{
-    result <- p +
-       labs(title = paste("Count of", col_name),
-         x = col_name,
-         y = "Count") +
-    geom_bar(aes(fill = .data[[col_name]]))
-   }
+  
   return(result)
 }
 
-make_way_tables <- function(col_names = ...){
-  #Only allow options to be categorical data
-  temp <- ...
-  tabyl(df, temp)
-}
+# make_way_tables <- function(df, ...){
+#   #Only allow options to be categorical data
+#   
+#   result <- tabyl(df, ...)
+#   #colnames(result)[1] <- clean_label(col_names)
+#   
+#   return(result)
+# }
 
 make_filtered_tables <- function(df, col_names, groups = NULL, conds){
   
@@ -239,7 +255,7 @@ make_visuals <- function(df, vars, group = NULL, facet = NULL, type, conds) {
     }else if(type == "correlation"){
       corr_mat <- df |> select(where(is.numeric)) |> cor()
       corr_long <- corr_mat |>
-        as_tibble |>
+        as_tibble() |>
         mutate(var1 = rownames(.)) |>
         pivot_longer(-var1, names_to = "var2", values_to = "correlation")
       p <- ggplot(corr_long, aes(x = var1, y = var2, fill = correlation)) +
