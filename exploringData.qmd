@@ -10,6 +10,7 @@ Loading needed libraries
 library(tidyverse)
 library(janitor)
 library(knitr)
+library(stats)
 ```
 
 Source Pages
@@ -77,5 +78,10 @@ make_visuals(df, vars = c("age", "number_of_apps_installed"), group = "device_mo
 
 make_visuals(df, names(df), type = "correlation")
 
+make_visuals(df, vars = "age", group = "gender", facet = "device_model", type = "box")
+
+make_visuals(df, vars = "age", group = "gender", facet = "user_behavior_class", type = "box")
+
+make_visuals(df, vars = "age", group = "device_model", facet = c("gender", "user_behavior_class"), type = "box")
 ```
 

@@ -9,16 +9,18 @@ df <- df_raw|>
 name_lookup_table <- tibble("label" = names(df_raw), "var" = names(df))
 
 clean_label <- function(name) {
-  lab <- name_lookup_table$label[which(name_lookup_table$var == name)]
-  
-  # # 1. Replace all underscores with spaces
-  # clean <- gsub("_", " ", name)
-  # # 2. Capitalize the first letter of each word (Title Case)
-  # s <- strsplit(clean, " ")[[1]]
-  # s <- paste0(toupper(substring(s, 1, 1)), substring(s, 2))
-  # return(paste(s, collapse = " "))
-  
-  return(lab)
+  if(name %in% names(df)){
+    lab <- name_lookup_table$label[which(name_lookup_table$var == name)]
+    return(lab)
+  }else{
+    # 1. Replace all underscores with spaces
+    clean <- gsub("_", " ", name)
+    # 2. Capitalize the first letter of each word (Title Case)
+    s <- strsplit(clean, " ")[[1]]
+    s <- paste0(toupper(substring(s, 1, 1)), substring(s, 2))
+    return(paste(s, collapse = " "))
+  }
+ 
 }
 
 # single_var_chart <- function(df, col_name){
@@ -182,7 +184,7 @@ make_visuals <- function(df, vars, group = NULL, facet = NULL, type, conds = NUL
     # --- Aesthetics Setup ---
     base_aes <- var1
     
-    # --- Categorical Plots (Bar / Pie) ---
+    # --- Categorical Plots (Bar) ---
     if (is_cat) {
       
       # If grouping is applied, set the fill aesthetic
@@ -202,9 +204,6 @@ make_visuals <- function(df, vars, group = NULL, facet = NULL, type, conds = NUL
         }
       # --- Numeric Plots (Hist, Density, Box, Jitter) ---
     } else {
-      
-      # Prepare position argument for grouped numeric plots
-      pos <- if(!is.null(group)){ "identity"} else{ "stack"}
     
       if (type == "density"){
             if(!is.null(group)){
@@ -228,11 +227,13 @@ make_visuals <- function(df, vars, group = NULL, facet = NULL, type, conds = NUL
               labs(x = " ", y = clean_label(var1), fill = clean_label(group),
                    title = paste("Box Plot of", clean_label(var1)))
         } 
+        p <- p + theme(legend.position = "none")
         
       } else if (type == "jitter" && !is.null(group)) {
         # Jitter plots: Require a categorical X-axis (the group)
         p <- p + geom_jitter(aes_string(x = group, y = var1, color = group), width = .25) + 
-          labs(title = paste("Jitter Plot of", clean_label(var1), "by", clean_label(group)))
+          labs(title = paste("Jitter Plot of", clean_label(var1), "by", clean_label(group))) +
+          theme(legend.position = "none")
         
       } else {
         stop(paste("Invalid or unsupported 'type' for the selected variables and groups:", type))
@@ -306,10 +307,13 @@ make_visuals <- function(df, vars, group = NULL, facet = NULL, type, conds = NUL
   # --- Apply Facets (Final Step) ---
   if(!is.null(facet)){
     if(length(facet) == 1){
-      p <- p + facet_wrap(~ facet)
+      p <- p + facet_wrap(as.formula(paste("~", facet))) +
+        labs(subtitle = paste("Per", clean_label(facet))) 
     }else if(length(facet) == 2){
-      p <- p + facet_grid(facet[1] ~ facet[2])
+      p <- p + facet_grid(as.formula(paste(facet[1], "~", facet[2]))) + 
+        labs(subtitle = paste("Per Intersects of", clean_label(facet[1]), "by", clean_label(facet[2])))
     }
+    p <- p + theme(plot.subtitle = element_text(hjust = .5))
   }
   
   final_plot <- p +
