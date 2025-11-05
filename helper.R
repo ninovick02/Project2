@@ -6,13 +6,19 @@ df <- df_raw|>
                   labels = c("Light Usage", "Mild Usage", "Moderate Usage", "Heavy Usage", "Extreme Usage"))) |>
   clean_names()
 
+name_lookup_table <- tibble("label" = names(df_raw), "var" = names(df))
+
 clean_label <- function(name) {
-  # 1. Replace all underscores with spaces
-  clean <- gsub("_", " ", name)
-  # 2. Capitalize the first letter of each word (Title Case)
-  s <- strsplit(clean, " ")[[1]]
-  s <- paste0(toupper(substring(s, 1, 1)), substring(s, 2))
-  return(paste(s, collapse = " "))
+  lab <- name_lookup_table$label[which(name_lookup_table$var == name)]
+  
+  # # 1. Replace all underscores with spaces
+  # clean <- gsub("_", " ", name)
+  # # 2. Capitalize the first letter of each word (Title Case)
+  # s <- strsplit(clean, " ")[[1]]
+  # s <- paste0(toupper(substring(s, 1, 1)), substring(s, 2))
+  # return(paste(s, collapse = " "))
+  
+  return(lab)
 }
 
 # single_var_chart <- function(df, col_name){
@@ -63,7 +69,7 @@ make_way_tables <- function(df, col_names){
 #   return(result)
 # }
 
-make_filtered_tables <- function(df, col_names, groups = NULL, conds){
+make_filtered_tables <- function(df, col_names, groups = NULL, conds = NULL){
   
   if(!is.null(conds)){
     df <- df |> 
@@ -75,6 +81,9 @@ make_filtered_tables <- function(df, col_names, groups = NULL, conds){
   }
   
   result <- df |> select(col_names)
+  for(i in 1:length(col_names)){
+    names(result)[i] <- clean_label(col_names[i])
+  }
   
   return(result)
 }
