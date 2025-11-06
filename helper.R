@@ -6,8 +6,10 @@ df <- df_raw|>
                   labels = c("Light Usage", "Mild Usage", "Moderate Usage", "Heavy Usage", "Extreme Usage"))) |>
   clean_names()
 
-cat_vars <- df |> select(where(is.factor))
-num_vars <- df |> select(where(is.numeric)) |> select(user_id)
+cat_vars <- df |> select(where(is.factor)) |> names()
+nice_cat_vars <- sapply(cat_vars, clean_label)
+num_vars <- df |> select(where(is.numeric)) |> select(-user_id) |> names()
+nice_num_vars <- sapply(num_vars, clean_label)
 
 name_lookup_table <- tibble("label" = names(df_raw), "var" = names(df))
 

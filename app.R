@@ -6,7 +6,7 @@ library(tidyverse)
 library(janitor)
 library(knitr)
 library(DT)
-# library(litedown)
+#library(litedown)
 
 source("helper.R")
 
@@ -21,7 +21,7 @@ ui <- sidebarLayout(
       
       navset_card_underline(
         
-        nav_panel("About", #includeHTML("README.md"), 
+        nav_panel("About", #includeMarkdown("README.md"), 
                   card(
           card_image("www/Mobile Phone.png", height = "300px")
         )),
@@ -31,16 +31,18 @@ ui <- sidebarLayout(
         nav_panel("Data Exploration", 
                   card(radioButtons(
                     "explore_type", 
-                     label = "Select the type of Exploration"),
-                     choices = list("Categorical Data Summaries" = "cat_sum", 
+                     label = "Select the type of Exploration",
+                     choices = list(
+                                    "Categorical Data Summaries" = "cat_sum", 
                                     "Numeric Value Summaries" = "num_sum", 
                                     "Plots" = "visual",
-                                    "Numeric Correlatoin Heatmap" = "heatmap") 
-                       ),
+                                    "Numeric Correlatoin Heatmap" = "heatmap"
+                                    ) 
+                    ),
                   conditionalPanel("input.explore_type",
                                    uiOutput("dynamic_card_output"))
                   
-                  
+                  )
                   
                   
                   )
@@ -69,91 +71,103 @@ server <- function(input, output, session){
     
     # Use a switch statement for clean, multi-way branching logic
     switch(input$ui_choice,
-           
            "cat_sum" = {
-             # If input is "A", render Card A (e.g., a fluidRow with content)
-             fluidRow(
-               h3("Categorical Data Summary"),
-               p("Provides One-Way and Two-Way Tables for categorical data"),
-               selectInput("cat_var1" ,"Select Variable", 
-                           choiceNames = sapply(names(cat_vars), clean_label), 
-                           choiceValues = names(cat_vars)),
-               actionButton("make_2_way", "Click to Add a Variable"),
-               conditionalPanel("input.make_2_way",
-                 selectInput("cat_var2", "Select Second Variable", 
-                             choiceNames = sapply(names(cat_vars), clean_label), 
-                             choiceValues = names(cat_vars))
+              # If input is "A", render Card A (e.g., a fluidRow with content)
+
+              req(cat_vars)
+              req(nice_cat_vars)
+             
+              fluidRow(
+                h3("Categorical Data Summary"),
+                p("Provides One-Way and Two-Way Tables for categorical data"),
+                selectInput("cat_var1" ,"Select Variable",
+                            choiceNames = nice_cat_vars,
+                            choiceValues = cat_vars),
+                actionButton("make_2_way", "Click to Add a Variable"),
+                conditionalPanel("input.make_2_way",
+                  selectInput("cat_var2", "Select Second Variable",
+                              choiceNames = nice_cat_vars,
+                              choiceValues = cat_vars)
                ),
-               actionButton("make_table", "Create Contingency Table"),
-               tableOutput("way_table")
-             )
+                actionButton("make_table", "Create Contingency Table"),
+                tableOutput("way_table")
+              )
            },
            
            "num_sum" = {
              # If input is "B", render Card B (e.g., a specialized input block)
+             
+             req(cat_vars)
+             req(nice_cat_vars)
+             req(num_vars)
+             req(nice_num_vars)
+             
              card(
-               card_header("Numeric Value Summary"),
+                card_header("Numeric Value Summary"),
                
-               checkboxGroupInput("num_vars", "Select Numeric Variables to Summarize", 
-                                  choiceNames = sapply(names(num_vars), clean_label),
-                                  choiceValues = names(num_vars)),
+                checkboxGroupInput("num_vars", "Select Numeric Variables to Summarize",
+                                   choiceNames = nice_num_vars,
+                                   choiceValues = num_vars),
                
-               checkboxGroupInput("stats", "Select Summary Statistics to add",
-                                  choice = c("Minimum", "Q1", "Median", "Q3", "Maximum", 
-                                             "Range", "Standard Deviation", "Variance", "Count")),
+                checkboxGroupInput("stats", "Select Summary Statistics to add",
+                                   choice = c("Minimum", "Q1", "Median", "Q3", "Maximum",
+                                              "Range", "Standard Deviation", "Variance", "Count")),
                
-               actionButton("other_quant", "Click to add other percentile options"),
+                actionButton("other_quant", "Click to add other percentile options"),
                
-               conditionalPanel("input.other_quant",
-                                h3("Enter Numbers for additional percentile statistics"),
-                                textInput("num_input", 'Enter numbers (0–1, separated by commas):", "'),
-                                actionButton("submit_nums", "Submit"),
-                                textOutput("num_feedback")),
+                conditionalPanel("input.other_quant",
+                                 h3("Enter Numbers for additional percentile statistics"),
+                                 textInput("num_input", 'Enter numbers (0–1, separated by commas):", "'),
+                                 actionButton("submit_nums", "Submit"),
+                                 textOutput("num_feedback")),
                
-               actionButton("grouped_num", "Click here to Group by Categorical Variables"),
+                actionButton("grouped_num", "Click here to Group by Categorical Variables"),
+
+                conditionalPanel("input.group_num",
                
-               conditionalPanel("input.group_num",
-                                
-                                fluidRow(
-                                  h3("Choose and order your variables"),
-                                  orderInput(
-                                    "available_vars", "Available variables:",
-                                    items = sapply(names(cat_vars), clean_label), connect = "selected_vars",
-                                    as_source = TRUE, as_target = FALSE
-                                  ),
-                                  
-                                  orderInput(
-                                    "selected_vars", "Selected variables (drag here):",
-                                    items = NULL, connect = "available_vars",
-                                    as_source = TRUE, as_target = TRUE
-                                  ),
-                                  
-                                  actionButton("submit_order", "Submit"),
-                                  textOutput("order_feedback")
-                                )
-                              ),
-               actionButton("make_num_sum", "Create Table"),
+                                 fluidRow(
+                                   h3("Choose and order your variables"),
+                                   orderInput(
+                                     "available_vars", "Available variables:",
+                                     items = nice_cat_vars, connect = "selected_vars",
+                                     as_source = TRUE, as_target = FALSE
+                                   ),
                
-               renderTable("num_sum_tab")
-             )
-           },
+                                   orderInput(
+                                     "selected_vars", "Selected variables (drag here):",
+                                     items = NULL, connect = "available_vars",
+                                     as_source = TRUE, as_target = TRUE
+                                   ),
+               
+                                   actionButton("submit_order", "Submit"),
+                                   textOutput("order_feedback")
+                                 )
+                               ),
+                actionButton("make_num_sum", "Create Table"),
+               
+                renderTable("num_sum_tab")
+             )           },
            
            "visual" = {
-             # If input is "C", render Card C (e.g., a DT table output)
-             div(
-               h3("Plot Data"),
-               selectInput("x_var", "Select X variable", choiceNames = names(df_raw), choiceValues = names(df)),
-               selectInput("y_var", "Select Y variable", choiceNames = names(df_raw), choiceValues = names(df)),
-               selectInput("fill", "Group By: ", choiceNames = sapply(names(cat_vars), clean_label), choiceValues = names(cat_vars)),
-               actionButton("add_facet", "Click Here to add faceting"),
-               conditionalPanel("input.add_facet", 
-                                selectInput("facet1", "Select Variable to Facet by",
-                                            choiceNames = sapply(names(cat_vars), clean_label), choiceValues = names(cat_vars)),
-                                selectInput("facet2", "Select Second Faceting Variable if Desired",
-                                            choiceNames = sapply(names(cat_vars), clean_label), choiceValues = names(cat_vars))
-               )
-               
-             )
+              # If input is "C", render Card C (e.g., a DT table output)
+              req(cat_vars)
+              req(nice_cat_vars)
+              req(name_lookup_table)
+              
+              div(
+                h3("Plot Data"),
+                selectInput("x_var", "Select X variable", choiceNames = name_lookup_table[[1]], choiceValues = name_lookup_table[[2]]),
+                selectInput("y_var", "Select Y variable", choiceNames = name_lookup_table[[1]], choiceValues = name_lookup_table[[2]]),
+                selectInput("fill", "Group By: ", choiceNames = nice_cat_names, choiceValues = cat_vars),
+                actionButton("add_facet", "Click Here to add faceting"),
+                conditionalPanel("input.add_facet", 
+                                 selectInput("facet1", "Select Variable to Facet by",
+                                             choiceNames = nice_cat_vars, choiceValues = cat_vars),
+                                 selectInput("facet2", "Select Second Faceting Variable if Desired",
+                                             choiceNames = nice_cat_vars, choiceValues = cat_vars)
+                )
+                
+              )
            },
            "heatmap" = {
              renderPlot("corr")
