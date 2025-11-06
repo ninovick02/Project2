@@ -6,7 +6,7 @@ library(tidyverse)
 library(janitor)
 library(knitr)
 library(DT)
-library(litedown)
+library(shinycssloaders)
 
 source("helper.R")
 
@@ -98,7 +98,7 @@ ui <- page_sidebar(
     
     nav_panel("Data Download", 
               downloadButton("download_filtered", "Download this Data Table"),
-              DT::dataTableOutput("filter_table")),
+              DT::dataTableOutput("filter_table") |> withSpinner(color="#0dc5c1")),
     
     nav_panel("Data Exploration", 
               card(radioButtons(
@@ -113,24 +113,12 @@ ui <- page_sidebar(
                                 ) 
                 ),
               conditionalPanel("input.explore_type",
-                               uiOutput("dynamic_card_output"))
+                               uiOutput("dynamic_card_output")) |> withSpinner(color="#0dc5c1")
               
               )
               
               
               )
-        
-        # nav_panel(
-        #   "Reference",
-        #   markdown(
-        #     glue::glue(
-        #       "These data were obtained from [IMDB](http://www.imdb.com/) and [Rotten Tomatoes](https://www.rottentomatoes.com/).
-        # 
-        # The data represent {nrow(movies)} randomly sampled movies released between 1972 to 2014 in the United States.
-        # "
-          #   )
-          # )
-        # )
       
       
     
