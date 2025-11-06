@@ -73,7 +73,6 @@ make_visuals(df, "gender", group = "device_model", type = bar)
 make_visuals(df, "age", type = "density")
 make_visuals(df, "age", group = "gender", type = "density")
 
-make_visuals(df, "age", type = "box")
 make_visuals(df, "age", group = "device_model", type = "box")
 
 make_visuals(df, "age", group = "device_model", type = "jitter")

@@ -12,7 +12,7 @@ source("helper.R")
 
 ui <- page_sidebar(
   
-  title = "title",
+  title = "Exploring Mobile Phone Usage",
   
   sidebar = sidebar(h3("Filter Data"),
                     
@@ -61,10 +61,40 @@ ui <- page_sidebar(
       
   navset_card_underline(
     
-    nav_panel("About", includeMarkdown("README.md"), 
+    nav_panel("About",  
               card(
-      card_image("www/Mobile Phone.png", height = "300px")
-    )),
+                tabPanel(
+                  # About section content
+                  h2("Mobile Device Usage and User Behavior App"),
+                  
+                  p("This app is made to let you view and explore the data that describes mobile
+                    device usage. The data behind this app comes from the ",
+                    a("Mobile Device Usage and User Behavior Dataset on Kaggle",
+                      href = "https://www.kaggle.com/datasets/valakhorasani/mobile-device-usage-and-user-behavior-dataset/data",
+                      target = "_blank"),
+                    ", curated by", (strong("Valakhorasani")), ". There are 700 observations and 10 variables of interest including device model, app usage time,
+                    and battery drain. You can learn more about the dataset and 
+    download it directly from Kaggle through the link provided."),
+                    
+                  br(),
+                  
+                  p("The sidebar on the left is your main control panel. Use it to filter the data 
+    based on its categorical data: device models, operating system, user behavior characteristics, or gender.
+    You can also select up to 2 numerical variables to filter by a range of values.
+    Your selections in the sidebar will automatically update the visualizations and 
+    summaries in the main panel once you apply your filters. You can also reset your filter!"),
+                  
+                  h3("App Organization"),
+                  
+                  tags$ul(
+                    tags$li(strong("About:"), " This page, where you are now, explains the purpose of the app, 
+            the dataset, and how to use the interface."),
+                    tags$li(strong("Download data:"), " View or download a table of the data filtered by the sidebar selections. "),
+                    tags$li(strong("Data Exploraton:"), " Explore data with tables, charts, and plots allowing you to visualize patterns present in the data.")
+                  ),
+                
+      card_image("www/Mobile Phone.png", height = "275px", width = "200px")
+    ))),
     
     nav_panel("Data Download", 
               downloadButton("download_filtered", "Download this Data Table"),
@@ -261,14 +291,6 @@ server <- function(input, output, session){
                                    choices = c("Minimum", "Q1", "Median", "Q3", "Maximum",
                                               "Range", "Standard Deviation", "Variance", "Count")),
                
-                actionButton("other_quant", "Click to add other percentile options"),
-               
-                conditionalPanel("input.other_quant",
-                                 h3("Enter Numbers for additional percentile statistics"),
-                                 textInput("num_input", 'Enter numbers (0–1, separated by commas):", "'),
-                                 actionButton("submit_nums", "Submit"),
-                                 textOutput("num_feedback")),
-               
                 actionButton("grouped_num", "Click here to Group by Categorical Variable"),
 
                 conditionalPanel("input.grouped_num",
@@ -277,7 +299,8 @@ server <- function(input, output, session){
                                    h3("Choose and order your variable"),
                                    
                                   selectInput("group_cat", "Select Categorical Variable to group", 
-                                              choices = setNames(cat_vars, nice_cat_vars))
+                                              choices =c("None" = "None", setNames(cat_vars, nice_cat_vars)),
+                                              selected = "None")
                                  )
                                ),
                 actionButton("make_num_sum", "Create Table"),
@@ -295,14 +318,14 @@ server <- function(input, output, session){
               div(
                 h3("Plot Data"),
                 selectInput("x_var", "Select X variable", choices = setNames(vars, nice_vars)),
-                selectInput("y_var", "Select Y variable", choices = c(" " = "", setNames(num_vars, nice_num_vars)), selected = ""),
-                selectInput("fill", "Group By: ", choices = c(" " = "", setNames(cat_vars, nice_cat_vars)), selected = ""),
+                selectInput("y_var", "Select Y variable", choices = c("None" = "None", setNames(num_vars, nice_num_vars)), selected = "None"),
+                selectInput("fill", "Group By: ", choices = c("None" = "None", setNames(cat_vars, nice_cat_vars)), selected = "None"),
                 actionButton("add_facet", "Click Here to add faceting"),
                 conditionalPanel("input.add_facet", 
                                  selectInput("facet1", "Select Variable to Facet by",
-                                             choices = setNames(cat_vars, nice_cat_vars)),
+                                             choices = c("None" = "None", setNames(cat_vars, nice_cat_vars)), selected = "None"),
                                  selectInput("facet2", "Select Second Faceting Variable if Desired",
-                                             choices = c(" " = "", setNames(cat_vars, nice_cat_vars), selected = ""))
+                                             choices = c("None" = "None", setNames(cat_vars, nice_cat_vars), selected = "None"))
                 ),
                 actionButton("make_plot", "Click to make plot"),
                 
@@ -318,17 +341,6 @@ server <- function(input, output, session){
     
     })
   
-    observeEvent(input$submit_nums, {
-      # Split text input into numeric vector
-      nums <- as.numeric(unlist(strsplit(input$num_input, ",")))
-      
-      # Check for invalid entries
-      if (any(is.na(nums)) || any(nums < 0 | nums > 1)) {
-        output$num_feedback <- renderText("Please enter only valid numbers between 0 and 1.")
-      } else {
-        output$num_feedback <- renderText(paste("You entered:", paste(nums, collapse = ", ")))
-      }
-    })
     #-------------------------------Server ------------
     
     
@@ -358,12 +370,23 @@ server <- function(input, output, session){
     
     num_sum_data <- eventReactive(input$make_num_sum,{
       
-                                  quantiles <- as.numeric(unlist(strsplit(input$num_input, ",")))
+                                  
                                   vars_s <- input$num_vars
                                   stats <- input$stats
                                   groups <- input$group_cat
                                   #df, vars, groups = NULL, stats = c("Minimum", "Q1", "Median", "Q3", "Maximum"), quantiles
-                                  return(make_summaries(df = df, vars = vars_s, stats = stats, quantiles = quantiles, groups = groups))
+                                 
+
+                                  if (length(groups) == 0 || groups == "None") {groups <- NULL}
+                                  
+                                  out <- make_summaries(
+                                    df = df, vars = vars_s, stats = stats, 
+                                   groups = groups
+                                  )
+                                  
+                                  print(str(out))  #  diagnostic: see what’s being returned
+                                  return(out)
+                                  
                                   }
     )
     
@@ -373,45 +396,50 @@ server <- function(input, output, session){
     
     
     plot_plot <- eventReactive(input$make_plot, {
-      #make_visuals(df, vars, group = NULL, facet = NULL, type)
-      if(input$fill == ""){
-        gp <- NULL
-      }else{
-        gp <- input$fill
-      }
       
-      if(is.factor(df[[input$x_var]])){
-        if(input$y_var == ""){
+      req(input$x_var)
+      
+      # --- Handle optional inputs ---
+      group <- if (input$fill %in% c("None", "")){ NULL} else {input$fill}
+      y_var <- if (input$y_var %in% c("None", "")) {NULL} else {input$y_var}
+      facet1 <- if (input$facet1 %in% c("None", "")) {NULL} else {input$facet1}
+      facet2 <- if (input$facet2 %in% c("None", "")) NULL else {input$facet2}
+      
+      facet <- c(facet1, facet2)
+      facet <- facet[!sapply(facet, is.null)]  # Remove NULLs
+      
+      # --- Determine type and variables ---
+      if(is.null(y_var)){  
+        # Only x_var is selected
+        if(is.factor(df[[input$x_var]])){
           type <- "bar"
           vars <- input$x_var
-          group <- gp
-        }else{
-          type <- "box"
-          vars <- input$y_var
-          group <- gp
-        }
-      }else{
-        if(input$y_var == ""){
-          type <- "denstiy"
+        } else {
+          type <- "density"
           vars <- input$x_var
-          group <- gp
-        }else{
+        }
+      } else {
+        # Both x and y are selected
+        if(is.factor(df[[input$x_var]])){
+          type <- "box"
+          vars <- y_var
+          group = input$x_var
+        } else {
           type <- "scatter"
-          vars <- c(input$x_var, input$y_var)
-          group <- gp
+          vars <- c(input$x_var, y_var)
         }
       }
       
-      if(input$facet2 == ""){fact2 <- NULL}
-      facet <- c(input$facet1, fact2)
-      
-      return(make_visuals(df = df, vars = vars, group = group, facet = facet, type = type))
+      # Call make_visuals with cleaned arguments
+      make_visuals(df = df, vars = vars, group = group, facet = facet, type = type)
       
     })
     
+    # --- Render the plot ---
     output$plot <- renderPlot({
       plot_plot()
     })
+    
     
     
     output$corr <- renderPlot({

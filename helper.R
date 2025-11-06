@@ -16,6 +16,8 @@ df <- df_raw|>
 name_lookup_table <- tibble("label" = names(df_raw), "var" = names(df))
 
 clean_label <- function(name) {
+  if (is.null(name) || length(name) == 0) return("")
+  
   if(name %in% names(df)){
     lab <- name_lookup_table$label[which(name_lookup_table$var == name)]
     return(lab)
@@ -281,8 +283,14 @@ make_visuals <- function(df, vars, group = NULL, facet = NULL, type, conds = NUL
         labs(x = clean_label(var_x),
              y = clean_label(var_y),
              color = clean_label(group),
-             title = paste("Scatter Plot:", clean_label(var_y), "vs", clean_label(var_x), if(!is.null(group)){paste("(By", clean_label(group), ")")}))
-      
+             title = paste(
+               "Scatter Plot:",
+               clean_label(var_y),
+               "vs",
+               clean_label(var_x),
+               if (!is.null(group) && group != "") {paste("(By", clean_label(group), ")") }else{""}
+             )
+        )
     }else if(type == "correlation"){
       num_df <- df |> select(all_of(vars)) |> select(where(is.numeric))
       corr_mat <- num_df |> cor(use = "pairwise.complete.obs")
