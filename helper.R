@@ -10,6 +10,7 @@ cat_vars <- df |> select(where(is.factor)) |> names()
 nice_cat_vars <- sapply(cat_vars, clean_label)
 num_vars <- df |> select(where(is.numeric)) |> select(-user_id) |> names()
 nice_num_vars <- sapply(num_vars, clean_label)
+df_always <- df
 
 name_lookup_table <- tibble("label" = names(df_raw), "var" = names(df))
 

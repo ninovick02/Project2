@@ -6,46 +6,87 @@ library(tidyverse)
 library(janitor)
 library(knitr)
 library(DT)
-#library(litedown)
+library(litedown)
 
 source("helper.R")
 
-ui <- sidebarLayout(
+ui <- page_sidebar(
   
-  titlePanel(" "),
+  title = "title",
   
-    sidebarPanel(
-      
-    ),
-    mainPanel(
-      
-      navset_card_underline(
-        
-        nav_panel("About", #includeMarkdown("README.md"), 
-                  card(
-          card_image("www/Mobile Phone.png", height = "300px")
-        )),
-        
-        nav_panel("Data Download", DT::dataTableOutput("filter_table")),
-        
-        nav_panel("Data Exploration", 
-                  card(radioButtons(
-                    "explore_type", 
-                     label = "Select the type of Exploration",
-                     choices = list(
-                                    "Categorical Data Summaries" = "cat_sum", 
-                                    "Numeric Value Summaries" = "num_sum", 
-                                    "Plots" = "visual",
-                                    "Numeric Correlatoin Heatmap" = "heatmap"
-                                    ) 
+  sidebar = sidebar("Filter Data",
+                    
+                    checkboxGroupInput("filter_dev", "Choose which Device Models to include",
+                                       choices = c("Google Pixel 5", "iPhone 12", "OnePlus 9", "Samsung Galaxy s21", "Xiaomi Mi 11"),
+                                       selected = c("Google Pixel 5", "iPhone 12", "OnePlus 9", "Samsung Galaxy s21", "Xiaomi Mi 11")),
+                    checkboxGroupInput("filter_sys", "Choose which Operating Systems to include",
+                                       choices = c("Android", "iOS"), selected = c("Android", "iOS")),
+                    checkboxGroupInput("filter_gender", "Choose which Genders to include",
+                                       choices = c("Male", "Female"), selected = c("Male", "Female")),
+                    checkboxGroupInput("fiter_behavior", "Choose which User Behavior Class to include (Phone Usage)",
+                                       choices = c("Light", "Mild", "Moderate", "Heavy", "Extreme"),
+                                       selected = c("Light", "Mild", "Moderate", "Heavy", "Extreme")),
+                    br(),
+                    
+                    actionButton("open_filter1", "Filter by a Numeric Variable?"),
+                    conditionalPanel("input.open_filter1",
+                                     selectInput("num_filter_var1", "Select Numerical Variable to filter by", 
+                                                 choices = c(setNames(num_vars, nice_num_vars))),
+                                     
+                                    uiOutput("filtered_num1")
+                                     
                     ),
-                  conditionalPanel("input.explore_type",
-                                   uiOutput("dynamic_card_output"))
-                  
-                  )
-                  
-                  
-                  )
+                    
+                    br(),
+                    
+                    actionButton("open_filter2", "Filter by a Second Numeric Variable?"),
+                    
+                    uiOutput("second_num_filter"),             
+                    uiOutput("filtered_num2"),
+                    
+                    
+                    br(),
+                    br(),
+                    
+                    
+                    actionButton("start_filter", "Click to Apply Filter choices")
+                                       
+                                       
+                                       
+                                       
+                    
+                    
+                    
+                    
+                    ),
+      
+  navset_card_underline(
+    
+    nav_panel("About", includeMarkdown("README.md"), 
+              card(
+      card_image("www/Mobile Phone.png", height = "300px")
+    )),
+    
+    nav_panel("Data Download", DT::dataTableOutput("filter_table")),
+    
+    nav_panel("Data Exploration", 
+              card(radioButtons(
+                "explore_type", 
+                 label = "Select the type of Exploration",
+                 choices = list(
+                                "Categorical Data Summaries" = "cat_sum", 
+                                "Numeric Value Summaries" = "num_sum", 
+                                "Plots" = "visual",
+                                "Numeric Correlatoin Heatmap" = "heatmap"
+                                ) 
+                ),
+              conditionalPanel("input.explore_type",
+                               uiOutput("dynamic_card_output"))
+              
+              )
+              
+              
+              )
         
         # nav_panel(
         #   "Reference",
@@ -60,14 +101,77 @@ ui <- sidebarLayout(
         # )
       
       
-    )
+    
   )
 )
 
 
 server <- function(input, output, session){
   
+  # ============ Side bar ===================================
+  output$second_num_filter <- renderUI({
+    req(input$open_filter2)        # wait until button is clicked
+    req(input$num_filter_var1)      # wait until first variable is selected
+    
+    selectInput(
+      "num_filter_var2",
+      "Select Second Numerical Variable by which to Filter",
+      choices = setNames(
+        num_vars[ num_vars != input$num_filter_var1 ], 
+        nice_num_vars[ num_vars != input$num_filter_var1 ]
+      )
+    )
+  })
+  
+  output$filtered_num1 <- renderUI({
+    req(input$num_filter_var1)
+    sliderInput("range1", paste("Select range for", clean_label(input$num_filter_var1)),
+                min = min(df[input$num_filter_var1]),
+                max = max(df[input$num_filter_var1]),
+                value = c(min(df[input$num_filter_var1]), max(df[input$num_filter_var1])))
+    
+  })
+  
+  output$filtered_num2 <- renderUI({
+    req(input$num_filter_var2)
+    sliderInput("range2", paste("Select range for", clean_label(input$num_filter_var2)),
+                min = min(df[input$num_filter_var2]),
+                max = max(df[input$num_filter_var2]),
+                value = c(min(df[input$num_filter_var2]), max(df[input$num_filter_var2])))
+    
+  })
+  
+  observeEvent(input$start_filter, {
+    req(
+      input$filter_dev, 
+      input$filter_sys, 
+      input$filter_gender,
+      input$fiter_behavior ,
+      input$num_filter_var1,
+      input$num_filter_var2,
+      input$range1,
+      input$range2
+    )
+    
+    
+    df <- df_always |> filter(
+      gender == input$filter_gender &
+      device_model == input$filter_dev &
+      operating_system == input$filter_sys &
+      user_behavior_class == input$filter_behavior &
+      input$num_filter_var1 >= input$range1[1] &
+      input$num_filter_var1 <= input$range1[2] &
+      input$num_filter_var2 >= input$range2[1] &
+      input$num_filter_var2 <= input$range2[2]
+    )
+    })
+  
+  # ============== Data Exploration ======================
   output$dynamic_card_output <- renderUI({
+    
+    validate(
+      need(!is.null(input$ui_choice), "Please select button.")
+    )
     
     # Use a switch statement for clean, multi-way branching logic
     switch(input$ui_choice,
@@ -173,8 +277,6 @@ server <- function(input, output, session){
              renderPlot("corr")
            }
            
-           # Optional: Default message if no choice is made or recognized
-           #div("Please select an option to view the corresponding card.")
       )
     
     })
