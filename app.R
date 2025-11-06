@@ -14,7 +14,10 @@ ui <- page_sidebar(
   
   title = "title",
   
-  sidebar = sidebar("Filter Data",
+  sidebar = sidebar(h3("Filter Data"),
+                    
+                    helpText("Use these to filter the Data. You must select "),
+                    
                     
                     checkboxGroupInput("filter_dev", "Choose which Device Models to include",
                                        choices = c("Google Pixel 5", "iPhone 12", "OnePlus 9", "Samsung Galaxy s21", "Xiaomi Mi 11"),
@@ -23,9 +26,10 @@ ui <- page_sidebar(
                                        choices = c("Android", "iOS"), selected = c("Android", "iOS")),
                     checkboxGroupInput("filter_gender", "Choose which Genders to include",
                                        choices = c("Male", "Female"), selected = c("Male", "Female")),
-                    checkboxGroupInput("fiter_behavior", "Choose which User Behavior Class to include (Phone Usage)",
-                                       choices = c("Light", "Mild", "Moderate", "Heavy", "Extreme"),
-                                       selected = c("Light", "Mild", "Moderate", "Heavy", "Extreme")),
+                    checkboxGroupInput("filter_behavior", "Choose which User Behavior Class to include (Phone Usage)",
+                                       choices = c("Light Usage", "Mild Usage", "Moderate Usage", "Heavy Usage", "Extreme Usage"),
+                                       selected = c("Light Usage", "Mild Usage", "Moderate Usage", "Heavy Usage", "Extreme Usage")
+                                       ),
                     br(),
                     
                     actionButton("open_filter1", "Filter by a Numeric Variable?"),
@@ -49,16 +53,11 @@ ui <- page_sidebar(
                     br(),
                     
                     
-                    actionButton("start_filter", "Click to Apply Filter choices")
-                                       
-                                       
-                                       
-                                       
+                    actionButton("start_filter", "Click to Apply Filter choices"),
                     
-                    
-                    
-                    
+                    actionButton("reset_df", "Click to Reset Data")                 
                     ),
+  
       
   navset_card_underline(
     
@@ -67,7 +66,9 @@ ui <- page_sidebar(
       card_image("www/Mobile Phone.png", height = "300px")
     )),
     
-    nav_panel("Data Download", DT::dataTableOutput("filter_table")),
+    nav_panel("Data Download", 
+              downloadButton("download_filtered", "Download this Data Table"),
+              DT::dataTableOutput("filter_table")),
     
     nav_panel("Data Exploration", 
               card(radioButtons(
@@ -108,6 +109,8 @@ ui <- page_sidebar(
 
 server <- function(input, output, session){
   
+  
+  
   # ============ Side bar ===================================
   output$second_num_filter <- renderUI({
     req(input$open_filter2)        # wait until button is clicked
@@ -125,46 +128,75 @@ server <- function(input, output, session){
   
   output$filtered_num1 <- renderUI({
     req(input$num_filter_var1)
+    data_col <- df[[input$num_filter_var1]]
+    
     sliderInput("range1", paste("Select range for", clean_label(input$num_filter_var1)),
-                min = min(df[input$num_filter_var1]),
-                max = max(df[input$num_filter_var1]),
-                value = c(min(df[input$num_filter_var1]), max(df[input$num_filter_var1])))
+                min = min(data_col),
+                max = max(data_col),
+                value = c(min(data_col), max(data_col)))
     
   })
   
   output$filtered_num2 <- renderUI({
     req(input$num_filter_var2)
-    sliderInput("range2", paste("Select range for", clean_label(input$num_filter_var2)),
-                min = min(df[input$num_filter_var2]),
-                max = max(df[input$num_filter_var2]),
-                value = c(min(df[input$num_filter_var2]), max(df[input$num_filter_var2])))
     
+    data_col <- df[[input$num_filter_var2]]
+    
+    sliderInput("range2", paste("Select range for", clean_label(input$num_filter_var2)),
+                min = min(data_col),
+                max = max(data_col),
+                value = c(min(data_col), max(data_col)))
   })
   
+  filtered_data <- reactiveVal(df)  # start with full dataset
+  
+  # Apply filters
   observeEvent(input$start_filter, {
-    req(
-      input$filter_dev, 
-      input$filter_sys, 
-      input$filter_gender,
-      input$fiter_behavior ,
-      input$num_filter_var1,
-      input$num_filter_var2,
-      input$range1,
-      input$range2
-    )
+    dat <- df
     
+    if(!is.null(input$filter_gender))
+      dat <- filter(dat, gender %in% input$filter_gender)
     
-    df <- df_always |> filter(
-      gender == input$filter_gender &
-      device_model == input$filter_dev &
-      operating_system == input$filter_sys &
-      user_behavior_class == input$filter_behavior &
-      input$num_filter_var1 >= input$range1[1] &
-      input$num_filter_var1 <= input$range1[2] &
-      input$num_filter_var2 >= input$range2[1] &
-      input$num_filter_var2 <= input$range2[2]
-    )
-    })
+    if(!is.null(input$filter_dev))
+      dat <- filter(dat, device_model %in% input$filter_dev)
+    
+    if(!is.null(input$filter_sys))
+      dat <- filter(dat, operating_system %in% input$filter_sys)
+    
+    if(!is.null(input$filter_behavior))
+      dat <- filter(dat, user_behavior_class %in% input$filter_behavior)
+    
+    if (!is.null(input$num_filter_var1) && !is.null(input$range1))
+      dat <- filter(dat, .data[[input$num_filter_var1]] >= input$range1[1],
+                           .data[[input$num_filter_var1]] <= input$range1[2])
+    
+    if (!is.null(input$num_filter_var2) && !is.null(input$range2))
+      dat <- filter(dat, .data[[input$num_filter_var2]] >= input$range2[1],
+                           .data[[input$num_filter_var2]] <= input$range2[2])
+    
+    filtered_data(dat)  # update reactive value
+  })
+  
+  # Reset data
+  observeEvent(input$reset_df, {
+    filtered_data(df)
+  })
+  
+  # ============ Data Table =============================
+  
+  output$filter_table <- renderDataTable({
+    
+    dat <- filtered_data()
+    names(dat) <- sapply(names(dat), clean_label)
+    dat
+  })
+  
+  output$download_filtered <- downloadHandler(
+    filename = function() { "filtered_data.csv" },
+    content = function(file) {
+      write.csv(df_filtered(), file, row.names = FALSE)
+    }
+  )
   
   # ============== Data Exploration ======================
   output$dynamic_card_output <- renderUI({
