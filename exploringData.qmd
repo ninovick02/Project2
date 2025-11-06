@@ -4,8 +4,8 @@ format: html
 editor: visual
 ---
 
-
 Loading needed libraries
+
 ```{r}
 library(tidyverse)
 library(janitor)
@@ -14,16 +14,19 @@ library(stats)
 ```
 
 Source Pages
+
 ```{r}
 source("helper.R")
 ```
 
-
 Loading data
+
 ```{r}
 df_raw <- read_csv("user_behavior_dataset.csv")
 ```
+
 Making df nice (also on helper page)
+
 ```{r}
 df <- df_raw|>
   mutate(across(where(is.character), as.factor)) |> 
@@ -33,8 +36,8 @@ df <- df_raw|>
   clean_names()
 ```
 
-
 Calling 1-way tables
+
 ```{r}
 cat <- df |> select(where(is.factor))
 for(i in 1:length(cat)){
@@ -43,24 +46,26 @@ for(i in 1:length(cat)){
 ```
 
 Calling A 2 way table
+
 ```{r}
 make_way_tables(cat, c("device_model", "gender"))
 ```
 
 Making filtered table
+
 ```{r}
 make_filtered_tables(df, c("age", "number_of_apps_installed"), conds = (as.numeric(df$user_behavior_class) < 3 & df$age > 50), groups =c( "device_model", "gender"))
 
 ```
 
 Make numeric summaries
+
 ```{r}
 make_summaries(df, c("age", "number_of_apps_installed"), groups =c("device_model", "gender"))
 ```
 
+Make graphs one of each types = bar, density, box, jitter, scatter, correlation
 
-Make graphs one of each
-types = bar, density, box, jitter, scatter, correlation 
 ```{r}
 make_visuals(df, "gender", type = bar)
 make_visuals(df, "gender", group = "device_model", type = bar)
@@ -84,4 +89,3 @@ make_visuals(df, vars = "age", group = "gender", facet = "user_behavior_class", 
 
 make_visuals(df, vars = "age", group = "device_model", facet = c("gender", "user_behavior_class"), type = "box")
 ```
-

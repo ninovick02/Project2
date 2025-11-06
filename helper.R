@@ -1,3 +1,8 @@
+library(tidyverse)
+library(janitor)
+library(knitr)
+library(stats)
+
 df_raw <- read_csv("user_behavior_dataset.csv")
 df <- df_raw|>
   mutate(across(where(is.character), as.factor)) |> 
@@ -6,11 +11,7 @@ df <- df_raw|>
                   labels = c("Light Usage", "Mild Usage", "Moderate Usage", "Heavy Usage", "Extreme Usage"))) |>
   clean_names()
 
-cat_vars <- df |> select(where(is.factor)) |> names()
-nice_cat_vars <- sapply(cat_vars, clean_label)
-num_vars <- df |> select(where(is.numeric)) |> select(-user_id) |> names()
-nice_num_vars <- sapply(num_vars, clean_label)
-df_always <- df
+
 
 name_lookup_table <- tibble("label" = names(df_raw), "var" = names(df))
 
@@ -28,6 +29,16 @@ clean_label <- function(name) {
   }
  
 }
+
+
+cat_vars <- df |> select(where(is.factor)) |> names()
+nice_cat_vars <- sapply(cat_vars, clean_label)
+num_vars <- df |> select(where(is.numeric)) |> select(-user_id) |> names()
+nice_num_vars <- sapply(num_vars, clean_label)
+df_always <- df
+
+vars <- c(cat_vars, num_vars)
+nice_vars <- c(nice_cat_vars, nice_num_vars)
 
 # single_var_chart <- function(df, col_name){
 #   p <- ggplot(data = df, aes(x = .data[[col_name]])) +

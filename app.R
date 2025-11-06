@@ -75,10 +75,11 @@ ui <- page_sidebar(
                 "explore_type", 
                  label = "Select the type of Exploration",
                  choices = list(
-                                "Categorical Data Summaries" = "cat_sum", 
+                                "One Way Contingency Table" = "cat_sum1", 
+                                "Two Way Contingency Table" = "cat_sum2",
                                 "Numeric Value Summaries" = "num_sum", 
                                 "Plots" = "visual",
-                                "Numeric Correlatoin Heatmap" = "heatmap"
+                                "Numeric Correlation Heatmap" = "heatmap"
                                 ) 
                 ),
               conditionalPanel("input.explore_type",
@@ -199,35 +200,47 @@ server <- function(input, output, session){
   )
   
   # ============== Data Exploration ======================
+  
+  
+  # ------------------ UI --------------------------------
   output$dynamic_card_output <- renderUI({
     
     validate(
-      need(!is.null(input$ui_choice), "Please select button.")
+      need(!is.null(input$explore_type), "Please select button.")
     )
     
     # Use a switch statement for clean, multi-way branching logic
-    switch(input$ui_choice,
-           "cat_sum" = {
+    switch(input$explore_type,
+           "cat_sum1" = {
               # If input is "A", render Card A (e.g., a fluidRow with content)
 
               req(cat_vars)
               req(nice_cat_vars)
              
               fluidRow(
-                h3("Categorical Data Summary"),
-                p("Provides One-Way and Two-Way Tables for categorical data"),
+                h3("One Way Contingency Table"),
+                
                 selectInput("cat_var1" ,"Select Variable",
-                            choiceNames = nice_cat_vars,
-                            choiceValues = cat_vars),
-                actionButton("make_2_way", "Click to Add a Variable"),
-                conditionalPanel("input.make_2_way",
-                  selectInput("cat_var2", "Select Second Variable",
-                              choiceNames = nice_cat_vars,
-                              choiceValues = cat_vars)
-               ),
-                actionButton("make_table", "Create Contingency Table"),
-                tableOutput("way_table")
+                            choices = setNames(cat_vars, nice_cat_vars)),
+                br(),
+                
+                actionButton("make_table1", "Create Contingency Table"),
+                tableOutput("one_way_table")
               )
+           },
+           
+           "cat_sum2" = {
+             fluidRow(
+               h3("Two Way Contingency Table"),
+               selectInput("cat_var2", "Select First Variable",
+                           choices = setNames(cat_vars, nice_cat_vars)),
+               selectInput("cat_var3", "Select Second Variable",
+                          choices = setNames(cat_vars, nice_cat_vars)),
+               actionButton("make_table2", "Create Contingency Table"),
+               tableOutput("two_way_table")
+            )
+             
+             
            },
            
            "num_sum" = {
@@ -238,15 +251,14 @@ server <- function(input, output, session){
              req(num_vars)
              req(nice_num_vars)
              
-             card(
-                card_header("Numeric Value Summary"),
+             fluidRow(
+                h3("Numeric Value Summary"),
                
                 checkboxGroupInput("num_vars", "Select Numeric Variables to Summarize",
-                                   choiceNames = nice_num_vars,
-                                   choiceValues = num_vars),
+                                   choices = setNames(num_vars, nice_num_vars)),
                
                 checkboxGroupInput("stats", "Select Summary Statistics to add",
-                                   choice = c("Minimum", "Q1", "Median", "Q3", "Maximum",
+                                   choices = c("Minimum", "Q1", "Median", "Q3", "Maximum",
                                               "Range", "Standard Deviation", "Variance", "Count")),
                
                 actionButton("other_quant", "Click to add other percentile options"),
@@ -257,32 +269,22 @@ server <- function(input, output, session){
                                  actionButton("submit_nums", "Submit"),
                                  textOutput("num_feedback")),
                
-                actionButton("grouped_num", "Click here to Group by Categorical Variables"),
+                actionButton("grouped_num", "Click here to Group by Categorical Variable"),
 
-                conditionalPanel("input.group_num",
+                conditionalPanel("input.grouped_num",
                
                                  fluidRow(
-                                   h3("Choose and order your variables"),
-                                   orderInput(
-                                     "available_vars", "Available variables:",
-                                     items = nice_cat_vars, connect = "selected_vars",
-                                     as_source = TRUE, as_target = FALSE
-                                   ),
-               
-                                   orderInput(
-                                     "selected_vars", "Selected variables (drag here):",
-                                     items = NULL, connect = "available_vars",
-                                     as_source = TRUE, as_target = TRUE
-                                   ),
-               
-                                   actionButton("submit_order", "Submit"),
-                                   textOutput("order_feedback")
+                                   h3("Choose and order your variable"),
+                                   
+                                  selectInput("group_cat", "Select Categorical Variable to group", 
+                                              choices = setNames(cat_vars, nice_cat_vars))
                                  )
                                ),
                 actionButton("make_num_sum", "Create Table"),
                
-                renderTable("num_sum_tab")
-             )           },
+                tableOutput("num_sum_tab")
+             )           
+             },
            
            "visual" = {
               # If input is "C", render Card C (e.g., a DT table output)
@@ -292,21 +294,24 @@ server <- function(input, output, session){
               
               div(
                 h3("Plot Data"),
-                selectInput("x_var", "Select X variable", choiceNames = name_lookup_table[[1]], choiceValues = name_lookup_table[[2]]),
-                selectInput("y_var", "Select Y variable", choiceNames = name_lookup_table[[1]], choiceValues = name_lookup_table[[2]]),
-                selectInput("fill", "Group By: ", choiceNames = nice_cat_names, choiceValues = cat_vars),
+                selectInput("x_var", "Select X variable", choices = setNames(vars, nice_vars)),
+                selectInput("y_var", "Select Y variable", choices = c(" " = "", setNames(num_vars, nice_num_vars)), selected = ""),
+                selectInput("fill", "Group By: ", choices = c(" " = "", setNames(cat_vars, nice_cat_vars)), selected = ""),
                 actionButton("add_facet", "Click Here to add faceting"),
                 conditionalPanel("input.add_facet", 
                                  selectInput("facet1", "Select Variable to Facet by",
-                                             choiceNames = nice_cat_vars, choiceValues = cat_vars),
+                                             choices = setNames(cat_vars, nice_cat_vars)),
                                  selectInput("facet2", "Select Second Faceting Variable if Desired",
-                                             choiceNames = nice_cat_vars, choiceValues = cat_vars)
-                )
+                                             choices = c(" " = "", setNames(cat_vars, nice_cat_vars), selected = ""))
+                ),
+                actionButton("make_plot", "Click to make plot"),
                 
+                plotOutput("plot")
               )
            },
            "heatmap" = {
-             renderPlot("corr")
+             card(
+             plotOutput("corr"))
            }
            
       )
@@ -324,18 +329,94 @@ server <- function(input, output, session){
         output$num_feedback <- renderText(paste("You entered:", paste(nums, collapse = ", ")))
       }
     })
+    #-------------------------------Server ------------
     
-    observeEvent(input$submit_order, {
-      selected_order <- input$selected_vars
-      if (length(selected_order) == 0) {
-        output$order_feedback <- renderText("You didn’t select any variables yet.")
-      } else {
-        output$order_feedback <- renderText(
-          paste("You chose this order:", paste(selected_order, collapse = " -> "))
-        )
-      }
+    
+    oneway_table_data <- eventReactive(input$make_table1, {
+      return(make_way_tables(df, col_names = input$cat_var1))
+      
+      # sides <- c(input$cat_var1, input$cat_var2)
+      # make_way_tables(df, sides)
     })
     
+    # Render it in the UI
+    output$one_way_table <- renderTable({
+      oneway_table_data()
+    })
+    
+    twoway_table_data <- eventReactive(input$make_table2, {
+      return(make_way_tables(df, col_names = c(input$cat_var2, input$cat3)))
+
+    })
+    
+    # Render it in the UI
+    output$two_way_table <- renderTable({
+      twoway_table_data()
+    })
+    
+    
+    
+    num_sum_data <- eventReactive(input$make_num_sum,{
+      
+                                  quantiles <- as.numeric(unlist(strsplit(input$num_input, ",")))
+                                  vars_s <- input$num_vars
+                                  stats <- input$stats
+                                  groups <- input$group_cat
+                                  #df, vars, groups = NULL, stats = c("Minimum", "Q1", "Median", "Q3", "Maximum"), quantiles
+                                  return(make_summaries(df = df, vars = vars_s, stats = stats, quantiles = quantiles, groups = groups))
+                                  }
+    )
+    
+    output$num_sum_tab <- renderTable({
+      num_sum_data()
+    })
+    
+    
+    plot_plot <- eventReactive(input$make_plot, {
+      #make_visuals(df, vars, group = NULL, facet = NULL, type)
+      if(input$fill == ""){
+        gp <- NULL
+      }else{
+        gp <- input$fill
+      }
+      
+      if(is.factor(df[[input$x_var]])){
+        if(input$y_var == ""){
+          type <- "bar"
+          vars <- input$x_var
+          group <- gp
+        }else{
+          type <- "box"
+          vars <- input$y_var
+          group <- gp
+        }
+      }else{
+        if(input$y_var == ""){
+          type <- "denstiy"
+          vars <- input$x_var
+          group <- gp
+        }else{
+          type <- "scatter"
+          vars <- c(input$x_var, input$y_var)
+          group <- gp
+        }
+      }
+      
+      if(input$facet2 == ""){fact2 <- NULL}
+      facet <- c(input$facet1, fact2)
+      
+      return(make_visuals(df = df, vars = vars, group = group, facet = facet, type = type))
+      
+    })
+    
+    output$plot <- renderPlot({
+      plot_plot()
+    })
+    
+    
+    output$corr <- renderPlot({
+      make_visuals(df, type = "correlation", vars = vars)
+    })
 }  
 
   
