@@ -18,6 +18,8 @@ ui <- page_sidebar(
                     
                     helpText("Use these to filter the Data. You must select "),
                     
+                    #=========== Filtering by categorical variables =======================
+                    # ---------- There are only 4, so I'll list them all out -------------
                     
                     checkboxGroupInput("filter_dev", "Choose which Device Models to include",
                                        choices = c("Google Pixel 5", "iPhone 12", "OnePlus 9", "Samsung Galaxy s21", "Xiaomi Mi 11"),
@@ -32,9 +34,11 @@ ui <- page_sidebar(
                                        ),
                     br(),
                     
+                    # ================= Making  the 2 numeric filters ===========================
+                    #-------- Using UI output for slider information so the mins and maxs aren't hard coded
                     actionButton("open_filter1", "Filter by a Numeric Variable?"),
-                    conditionalPanel("input.open_filter1",
-                                     selectInput("num_filter_var1", "Select Numerical Variable to filter by", 
+                    conditionalPanel("input.open_filter1", # Hides the panel from the viewer until action button is used
+                                     selectInput("num_filter_var1", "Select Numerical Variable to Filter by", 
                                                  choices = c(setNames(num_vars, nice_num_vars))),
                                      
                                     uiOutput("filtered_num1")
@@ -43,6 +47,7 @@ ui <- page_sidebar(
                     
                     br(),
                     
+                    # Second verse, same as the first
                     actionButton("open_filter2", "Filter by a Second Numeric Variable?"),
                     
                     uiOutput("second_num_filter"),             
@@ -52,15 +57,18 @@ ui <- page_sidebar(
                     br(),
                     br(),
                     
-                    
+                    # Going to make all the filters apply at once
                     actionButton("start_filter", "Click to Apply Filter choices"),
                     
+                    # Allows you to deselect any filter
                     actionButton("reset_df", "Click to Reset Data")                 
                     ),
   
-      
+  # ============== Main panel: Making Tabs ===================
+  
   navset_card_underline(
     
+    # Tab 1
     nav_panel("About",  
               card(
                 tabPanel(
@@ -96,10 +104,12 @@ ui <- page_sidebar(
       card_image("www/Mobile Phone.png", height = "275px", width = "200px")
     ))),
     
+    # Tab 2
     nav_panel("Data Download", 
               downloadButton("download_filtered", "Download this Data Table"),
               DT::dataTableOutput("filter_table") |> withSpinner(color="#0dc5c1")),
     
+    # Tab 3
     nav_panel("Data Exploration", 
               card(radioButtons(
                 "explore_type", 
@@ -130,8 +140,11 @@ server <- function(input, output, session){
   
   
   
-  # ============ Side bar ===================================
-  output$second_num_filter <- renderUI({
+  # ============ Code for Side bar ===================================
+ 
+  # Makes second choice not equal to the first
+  # Yes, I could have used HW7, I wanted to try something different
+   output$second_num_filter <- renderUI({
     req(input$open_filter2)        # wait until button is clicked
     req(input$num_filter_var1)      # wait until first variable is selected
     
@@ -145,6 +158,7 @@ server <- function(input, output, session){
     )
   })
   
+   # Slider for var 1
   output$filtered_num1 <- renderUI({
     req(input$num_filter_var1)
     data_col <- df[[input$num_filter_var1]]
@@ -156,6 +170,7 @@ server <- function(input, output, session){
     
   })
   
+  # slider for var 2
   output$filtered_num2 <- renderUI({
     req(input$num_filter_var2)
     
@@ -167,6 +182,7 @@ server <- function(input, output, session){
                 value = c(min(data_col), max(data_col)))
   })
   
+  # Applying action buttons
   filtered_data <- reactiveVal(df)  # start with full dataset
   
   # Apply filters
@@ -201,15 +217,17 @@ server <- function(input, output, session){
     filtered_data(df)
   })
   
-  # ============ Data Table =============================
+  # ============ Code for Data Table =============================
   
   output$filter_table <- renderDataTable({
     
+    # Using filtering from last step
     dat <- filtered_data()
     names(dat) <- sapply(names(dat), clean_label)
     dat
   })
   
+  # Downloading the data
   output$download_filtered <- downloadHandler(
     filename = function() { "filtered_data.csv" },
     content = function(file) {
@@ -226,7 +244,7 @@ server <- function(input, output, session){
     validate(
       need(!is.null(input$explore_type), "Please select button.")
     )
-    
+    # Using template for how to use switch
     # Use a switch statement for clean, multi-way branching logic
     switch(input$explore_type,
            "cat_sum1" = {
@@ -272,6 +290,7 @@ server <- function(input, output, session){
              fluidRow(
                 h3("Numeric Value Summary"),
                
+                #options for numeric summaries
                 checkboxGroupInput("num_vars", "Select Numeric Variables to Summarize",
                                    choices = setNames(num_vars, nice_num_vars)),
                
@@ -299,6 +318,7 @@ server <- function(input, output, session){
            
            "visual" = {
               # If input is "C", render Card C (e.g., a DT table output)
+             #Creating plots based on user input
               req(cat_vars)
               req(nice_cat_vars)
               req(name_lookup_table)
@@ -330,7 +350,8 @@ server <- function(input, output, session){
     })
   
     #-------------------------------Server ------------
-    
+    # Applying the helper functions
+   # Using eventReactive instead of observeEvent
     
     oneway_table_data <- eventReactive(input$make_table1, {
       return(make_way_tables(df, col_names = input$cat_var1))
@@ -429,11 +450,11 @@ server <- function(input, output, session){
     })
     
     
-    
+    # -- making correlation plot--
     output$corr <- renderPlot({
       make_visuals(df, type = "correlation", vars = vars)
     })
 }  
 
-  
+# ====== Running the app ===========
 shinyApp(ui = ui, server = server)
