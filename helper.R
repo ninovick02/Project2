@@ -3,6 +3,8 @@ library(janitor)
 library(knitr)
 library(stats)
 
+# ========== Loading data ===================
+
 df_raw <- read_csv("user_behavior_dataset.csv")
 df <- df_raw|>
   mutate(across(where(is.character), as.factor)) |> 
@@ -11,13 +13,15 @@ df <- df_raw|>
                   labels = c("Light Usage", "Mild Usage", "Moderate Usage", "Heavy Usage", "Extreme Usage"))) |>
   clean_names()
 
-
-
 name_lookup_table <- tibble("label" = names(df_raw), "var" = names(df))
 
+# ============== function for nice labels =======================
+
 clean_label <- function(name) {
+  #Making sure this will not throw an error
   if (is.null(name) || length(name) == 0) return("")
   
+  #Taking advantage of lexical scoping and using name look up table
   if(name %in% names(df)){
     lab <- name_lookup_table$label[which(name_lookup_table$var == name)]
     return(lab)
@@ -32,7 +36,7 @@ clean_label <- function(name) {
  
 }
 
-
+# ======= Creating variables to use in app ==============
 cat_vars <- df |> select(where(is.factor)) |> names()
 nice_cat_vars <- sapply(cat_vars, clean_label)
 num_vars <- df |> select(where(is.numeric)) |> select(-user_id) |> names()
@@ -41,6 +45,8 @@ df_always <- df
 
 vars <- c(cat_vars, num_vars)
 nice_vars <- c(nice_cat_vars, nice_num_vars)
+
+# ========= Commented out code so I know not to try this again ============
 
 # single_var_chart <- function(df, col_name){
 #   p <- ggplot(data = df, aes(x = .data[[col_name]])) +
@@ -68,12 +74,16 @@ nice_vars <- c(nice_cat_vars, nice_num_vars)
 #   return(result)
 # }
 
+
+# ======Contingency table function ===========
+
 make_way_tables <- function(df, col_names){
-  #Only allow options to be categorical data
-  
+  #Shiny app only allow options to be categorical data
+  # Using x tabs, but can use tables or tabyls 
   f = paste("~", paste(col_names, collapse="+"))
   result <- xtabs(f, data=df)
   
+  # Making the names pretty
   for(i in 1:length(col_names)){
     names(dimnames(result))[i] <- clean_label(col_names[i])
   }
@@ -81,6 +91,7 @@ make_way_tables <- function(df, col_names){
   return(result)
 }
 
+#------ code but using tabyls instead (does not work) ------------
 # make_way_tables <- function(df, ...){
 #   #Only allow options to be categorical data
 #   
@@ -90,22 +101,27 @@ make_way_tables <- function(df, col_names){
 #   return(result)
 # }
 
+#========Did not end up using the function, but makes a filtered table ==========
 make_filtered_tables <- function(df, col_names, groups = NULL, conds = NULL){
   
+  # Filtering by conditions
   if(!is.null(conds)){
     df <- df |> 
       filter(conds)
   }
   
+  #selecting specified columns
   columns_to_select <- c(groups, setdiff(col_names, groups))
 
   result <- df |> 
     select(all_of(columns_to_select))
   
+  # Grouping data
   if (!is.null(groups)){
     result <- result |> group_by(across(all_of(groups))) |> arrange(across(all_of(groups)))
   }
   
+  #Making the names pretty
   result <- result |> rename_with(~ sapply(.x, clean_label), everything())
   
   return(result)
@@ -113,6 +129,7 @@ make_filtered_tables <- function(df, col_names, groups = NULL, conds = NULL){
 
 make_summaries <- function(df, vars, groups = NULL, stats = c("Minimum", "Q1", "Median", "Q3", "Maximum"), quantiles = NULL){
   
+  # All Function choices that are supported 
   funct_choice <-  list( "Minimum" = function(x) min(x),
                          "Q1" = function(x) unname(quantile(x, .25)),
                          "Median" = function(x) median(x),
@@ -124,12 +141,18 @@ make_summaries <- function(df, vars, groups = NULL, stats = c("Minimum", "Q1", "
                          "Variance" = function(x) var(x),
                          "Count" = function(x) length(x)
                          )
+  # Choosing only selected functions
   functs <- funct_choice[stats]
   
+  
+  #--------- Not using this bc couldn't figure out how to make it work ---------
+  
+  #Naming quantiles
   if(!is.null(quantiles)){
     names(quantiles) <- paste0("p", quantiles * 100)
     quantiles <- quantiles
     
+    #Putting them in the correct place on the resulting table
     for(i in 1:length(quantiles)){
       j = i
       if(quantiles[i] <= .25){
@@ -159,10 +182,12 @@ make_summaries <- function(df, vars, groups = NULL, stats = c("Minimum", "Q1", "
     
   }
   
+  #Grouping variables
   if (!is.null(groups)){
     df <- df |> group_by(across(all_of(groups)))
   }
 
+  # Creating statistical summaries
     summary_table_wide <- df |> 
       summarize(
         across(
@@ -171,6 +196,7 @@ make_summaries <- function(df, vars, groups = NULL, stats = c("Minimum", "Q1", "
         )
       )
     
+    #Making the tables look nice
     summary_table_long <- summary_table_wide |> 
       pivot_longer(
           cols = !all_of(groups), 
@@ -188,6 +214,8 @@ make_summaries <- function(df, vars, groups = NULL, stats = c("Minimum", "Q1", "
     
     return(summary_table)
 }
+
+# ========== Create all the plots ==============
 
 make_visuals <- function(df, vars, group = NULL, facet = NULL, type, conds = NULL) {
   
@@ -221,7 +249,7 @@ make_visuals <- function(df, vars, group = NULL, facet = NULL, type, conds = NUL
           p <- p + labs(title = paste("Bar Chart of", clean_label(var1), sep = " "), 
                         x = clean_label(var1), y = "Count", fill = clean_label(fill_aes))
         }
-      # --- Numeric Plots (Hist, Density, Box, Jitter) ---
+      # --- Numeric Plots (Density, Box, Jitter) ---
     } else {
     
       if (type == "density"){
@@ -291,6 +319,7 @@ make_visuals <- function(df, vars, group = NULL, facet = NULL, type, conds = NUL
                if (!is.null(group) && group != "") {paste("(By", clean_label(group), ")") }else{""}
              )
         )
+      # CASE 3: GRAPH WE DIDN'T GO OVER IN CLASS
     }else if(type == "correlation"){
       num_df <- df |> select(all_of(vars)) |> select(where(is.numeric))
       corr_mat <- num_df |> cor(use = "pairwise.complete.obs")
